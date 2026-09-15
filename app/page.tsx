@@ -61,42 +61,24 @@ const EXAMPLE_PROMPTS = [
 ];
 
 /* ── FEED CARD ──────────────────────────────────────────────
-   Matches Base44 style: dark code area, line numbers, chevron
+   Thin, airy history row for non-technical users:
+   icon + generated file name + "Open Code" shortcut.
 ───────────────────────────────────────────────────────────── */
 function FeedCard({
-  code,
+  fileName,
   isStreaming,
-  doneAt,
+  onOpenCode,
 }: {
-  code: string;
+  fileName: string;
   isStreaming: boolean;
-  doneAt: Date | null;
+  onOpenCode: () => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
-  const codeRef = useRef<HTMLDivElement>(null);
-  const lines = code.split("\n");
-
-  // Auto-scroll code area while streaming
-  useEffect(() => {
-    if (codeRef.current && isStreaming && expanded) {
-      codeRef.current.scrollTop = codeRef.current.scrollHeight;
-    }
-  }, [code, isStreaming, expanded]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-  };
-
   return (
-    <div className="mx-3 my-3 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-      {/* Card header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-      >
-        {/* Folder icon */}
+    <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors">
+      {/* File icon */}
+      <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
         <svg
-          className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"
+          className="w-3.5 h-3.5 text-indigo-500"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -105,95 +87,28 @@ function FeedCard({
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"
+            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
           />
         </svg>
+      </div>
 
-        <span className="text-[12px] text-indigo-500 font-mono flex-1 truncate">
-          {isStreaming ? "Writing" : "Viewed"}{" "}
-          <span className="text-indigo-400">/App.js</span>
-        </span>
+      {/* File name */}
+      <span className="flex-1 min-w-0 truncate text-[12.5px] text-gray-700 font-medium">
+        {fileName}
+      </span>
 
-        {isStreaming && (
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-        )}
-
-        {/* Chevron */}
-        <svg
-          className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${
-            expanded ? "" : "-rotate-90"
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {/* Code body */}
-      {expanded && (
-        <div className="border-t border-gray-200">
-          {/* Dark code area */}
-          <div
-            ref={codeRef}
-            className="bg-[#0d1117] overflow-auto"
-            style={{ maxHeight: "55vh" }}
-          >
-            <div className="py-3">
-              {lines.map((line, i) => (
-                <div
-                  key={i}
-                  className="flex group hover:bg-white/[0.04] px-0 leading-[1.75]"
-                >
-                  <span className="text-[#3b4048] select-none text-right font-mono text-[11px] w-10 pr-4 flex-shrink-0 pt-px">
-                    {i + 1}
-                  </span>
-                  <span className="text-[#e6edf3] font-mono text-[11.5px] pr-4 break-all whitespace-pre-wrap flex-1">
-                    {line || " "}
-                  </span>
-                </div>
-              ))}
-              {/* Blinking cursor */}
-              {isStreaming && (
-                <div className="flex leading-[1.75] px-0">
-                  <span className="text-[#3b4048] select-none text-right font-mono text-[11px] w-10 pr-4 flex-shrink-0" />
-                  <span className="inline-block w-[2px] h-3.5 bg-indigo-400 animate-pulse mt-1 rounded-sm" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Card footer */}
-          <div className="px-4 py-2 bg-[#0d1117] border-t border-white/[0.06] flex items-center justify-between">
-            <span className="text-[10px] text-[#484f58] font-mono">
-              {doneAt
-                ? doneAt.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  }) +
-                  ", " +
-                  doneAt.toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "Generating..."}
-            </span>
-            {!isStreaming && (
-              <button
-                onClick={handleCopy}
-                title="Copy code"
-                className="text-[#484f58] hover:text-[#e6edf3] transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
+      {isStreaming && (
+        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
       )}
+
+      {/* Open Code shortcut */}
+      <button
+        onClick={onOpenCode}
+        disabled={isStreaming}
+        className="flex-shrink-0 px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-medium text-gray-500 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Open Code
+      </button>
     </div>
   );
 }
@@ -287,11 +202,9 @@ function ChatInput({
 /* ── MAIN PAGE ──────────────────────────────────────────── */
 export default function Home() {
   const [prompt, setPrompt] = useState("");
-  const [streamingCode, setStreamingCode] = useState("");
   const [finalCode, setFinalCode] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isDone, setIsDone] = useState(false);
-  const [doneAt, setDoneAt] = useState<Date | null>(null);
   const [error, setError] = useState("");
   const [view, setView] = useState<View>("split");
   const [projectName, setProjectName] = useState("my-app");
@@ -339,9 +252,7 @@ export default function Home() {
 
       setIsStreaming(true);
       setIsDone(false);
-      setDoneAt(null);
       setError("");
-      setStreamingCode("");
       setFinalCode("");
 
       const slug = promptText
@@ -380,7 +291,6 @@ export default function Home() {
           const { done, value } = await reader.read();
           if (done) break;
           accumulated += decoder.decode(value, { stream: true });
-          setStreamingCode(accumulated);
         }
 
         const clean = accumulated
@@ -389,7 +299,6 @@ export default function Home() {
           .trim();
 
         setFinalCode(clean);
-        setDoneAt(new Date());
         setIsDone(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
@@ -411,14 +320,10 @@ export default function Home() {
 
   const resetProject = () => {
     setIsDone(false);
-    setStreamingCode("");
     setFinalCode("");
     setError("");
-    setDoneAt(null);
   };
 
-  const showCode = view === "split" || view === "code";
-  const showPreview = view === "split" || view === "preview";
   const hasActivity = isStreaming || isDone;
 
   return (
@@ -520,9 +425,9 @@ export default function Home() {
             ) : (
               <div ref={feedRef} className="space-y-2">
                 <FeedCard
-                  code={streamingCode}
+                  fileName="App.js"
                   isStreaming={isStreaming}
-                  doneAt={doneAt}
+                  onOpenCode={() => setView("code")}
                 />
               </div>
             )}
@@ -584,11 +489,20 @@ export default function Home() {
                 theme="light"
                 options={{ externalResources: ["https://cdn.tailwindcss.com"] }}
               >
-                <SandpackPreview
-                  style={{ height: "100vh", width: "100%" }}
-                  showNavigator={false}
-                  showOpenInCodeSandbox={false}
-                />
+                {view === "code" ? (
+                  <SandpackCodeEditor
+                    style={{ height: "100vh", width: "100%" }}
+                    showLineNumbers
+                    showTabs={false}
+                    readOnly
+                  />
+                ) : (
+                  <SandpackPreview
+                    style={{ height: "100vh", width: "100%" }}
+                    showNavigator={false}
+                    showOpenInCodeSandbox={false}
+                  />
+                )}
               </SandpackProvider>
             )}
 
