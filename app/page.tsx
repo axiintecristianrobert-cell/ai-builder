@@ -5,6 +5,7 @@ import {
   SandpackProvider,
   SandpackPreview,
   SandpackCodeEditor,
+  useSandpack,
 } from "@codesandbox/sandpack-react";
 
 type View = "split" | "code" | "preview";
@@ -60,57 +61,214 @@ const EXAMPLE_PROMPTS = [
   },
 ];
 
-/* ── FEED CARD ──────────────────────────────────────────────
-   Thin, airy history row for non-technical users:
-   icon + generated file name + "Open Code" shortcut.
+/* ── FILE ICONS ─────────────────────────────────────────────
+   One icon per kind of file, so a row reads before it is read.
 ───────────────────────────────────────────────────────────── */
-function FeedCard({
-  fileName,
-  isStreaming,
+type FileKind = { tone: string; path: React.ReactNode };
+
+const KIND_COMPONENT: FileKind = {
+  tone: "bg-violet-50 text-violet-600",
+  path: (
+    <path d="M14 4.5h4.4c.6 0 1.1.5 1.1 1.1V10m0 0a2.2 2.2 0 100 4.4V19c0 .6-.5 1-1.1 1H14m0 0a2.2 2.2 0 10-4.4 0H5.1c-.6 0-1.1-.4-1.1-1v-4.4m0 0a2.2 2.2 0 100-4.4V5.6c0-.6.5-1.1 1.1-1.1h4.5m0 0a2.2 2.2 0 104.4 0" />
+  ),
+};
+
+const KIND_DATA: FileKind = {
+  tone: "bg-teal-50 text-teal-600",
+  path: (
+    <>
+      <ellipse cx="12" cy="6" rx="7.5" ry="3" />
+      <path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6" />
+      <path d="M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" />
+    </>
+  ),
+};
+
+const KIND_STYLE: FileKind = {
+  tone: "bg-pink-50 text-pink-600",
+  path: (
+    <>
+      <path d="M12 3a9 9 0 000 18c1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8h2.1A4.3 4.3 0 0021 10.7C21 6.4 16.9 3 12 3z" />
+      <circle cx="7.5" cy="10.5" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="7.5" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="16.5" cy="10.5" r="1.1" fill="currentColor" stroke="none" />
+    </>
+  ),
+};
+
+const KIND_CONFIG: FileKind = {
+  tone: "bg-amber-50 text-amber-600",
+  path: (
+    <path d="M8.5 4.5h-1A2.5 2.5 0 005 7v2.2c0 1-.8 1.8-1.8 1.8h-.4v2h.4c1 0 1.8.8 1.8 1.8V17a2.5 2.5 0 002.5 2.5h1M15.5 4.5h1A2.5 2.5 0 0119 7v2.2c0 1 .8 1.8 1.8 1.8h.4v2h-.4c-1 0-1.8.8-1.8 1.8V17a2.5 2.5 0 01-2.5 2.5h-1" />
+  ),
+};
+
+const KIND_CODE: FileKind = {
+  tone: "bg-gray-100 text-gray-500",
+  path: <path d="M9.5 8.5L6 12l3.5 3.5M14.5 8.5L18 12l-3.5 3.5" />,
+};
+
+function kindFor(path: string): FileKind {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  if (/\.(css|scss)$/.test(name)) return KIND_STYLE;
+  if (/\.json$/.test(name) || /\.config\.[jt]s$/.test(name)) return KIND_CONFIG;
+  if (/^\/(lib|data|api|utils)\//.test(path)) return KIND_DATA;
+  if (/^[A-Z]/.test(name)) return KIND_COMPONENT;
+  return KIND_CODE;
+}
+
+function FileIcon({ path }: { path: string }) {
+  const kind = kindFor(path);
+  return (
+    <span className={`w-[26px] h-[26px] rounded-lg flex items-center justify-center flex-shrink-0 ${kind.tone}`}>
+      <svg
+        className="w-3.5 h-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {kind.path}
+      </svg>
+    </span>
+  );
+}
+
+/* ── FEED ENTRY ─────────────────────────────────────────────
+   What the agent did, then the file it did it in.
+───────────────────────────────────────────────────────────── */
+type StreamEvent =
+  | { type: "file_start"; path: string; description: string }
+  | { type: "file"; path: string; description: string; code: string; lines: number }
+  | { type: "summary"; text: string }
+  | { type: "error"; message: string };
+
+type FeedFile = {
+  path: string;
+  description: string;
+  code: string;
+  lines: number;
+  done: boolean;
+};
+
+function FeedEntry({
+  file,
+  isActive,
   onOpenCode,
 }: {
-  fileName: string;
-  isStreaming: boolean;
+  file: FeedFile;
+  isActive: boolean;
   onOpenCode: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors">
-      {/* File icon */}
-      <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-        <svg
-          className="w-3.5 h-3.5 text-indigo-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-          />
-        </svg>
-      </div>
-
-      {/* File name */}
-      <span className="flex-1 min-w-0 truncate text-[12.5px] text-gray-700 font-medium">
-        {fileName}
-      </span>
-
-      {isStreaming && (
-        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+    <div className="flex flex-col gap-1.5">
+      {file.description && (
+        <p className="px-0.5 text-[12.5px] leading-relaxed text-gray-500">
+          {file.description}
+        </p>
       )}
 
-      {/* Open Code shortcut */}
-      <button
-        onClick={onOpenCode}
-        disabled={isStreaming}
-        className="flex-shrink-0 px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-medium text-gray-500 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      <div
+        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border bg-white transition-all ${
+          isActive
+            ? "border-indigo-200 ring-[3px] ring-indigo-50"
+            : "border-gray-200 hover:border-gray-300"
+        }`}
       >
-        Open Code
-      </button>
+        <FileIcon path={file.path} />
+
+        <span className="flex-1 min-w-0 truncate font-mono text-[11.5px] text-gray-700">
+          {file.path}
+        </span>
+
+        {file.done ? (
+          <span className="flex-shrink-0 text-[10.5px] text-gray-400 tabular-nums">
+            {file.lines} linii
+          </span>
+        ) : (
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+        )}
+
+        <button
+          onClick={onOpenCode}
+          disabled={!file.done}
+          className="flex-shrink-0 px-2.5 py-1.5 rounded-lg border border-gray-200 text-[10.5px] font-medium text-gray-500 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Open Code
+        </button>
+      </div>
     </div>
   );
+}
+
+/* ── FEED HEADER & CLOSING MESSAGE ──────────────────────── */
+function formatDuration(ms: number) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  return min ? `${min}m ${sec}s` : `${sec}s`;
+}
+
+function FeedHeader({
+  count,
+  isStreaming,
+  durationMs,
+}: {
+  count: number;
+  isStreaming: boolean;
+  durationMs: number;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-0.5 pb-3 border-b border-gray-100">
+      <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+      </svg>
+      <span className="text-[12.5px] font-semibold text-gray-800">
+        {isStreaming ? "Scriu codul" : "Am scris codul"}
+      </span>
+      <span className="ml-auto flex items-center gap-2.5 text-[10.5px] text-gray-400 tabular-nums">
+        <span>
+          {count} {count === 1 ? "fișier actualizat" : "fișiere actualizate"}
+        </span>
+        <span>{formatDuration(durationMs)}</span>
+      </span>
+    </div>
+  );
+}
+
+function FeedDone({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-3 rounded-xl bg-emerald-50">
+      <svg className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25 4.5-4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div className="min-w-0">
+        <p className="text-[12.5px] font-semibold text-emerald-800">Aplicația ta e gata</p>
+        <p className="text-[11.5px] text-emerald-700/80 mt-0.5 leading-relaxed">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── ACTIVE FILE ────────────────────────────────────────────
+   Points the Sandpack editor at the file "Open Code" asked for,
+   without remounting the sandbox.
+───────────────────────────────────────────────────────────── */
+function ActiveFile({ path }: { path: string | null }) {
+  const { sandpack } = useSandpack();
+  const sandpackRef = useRef(sandpack);
+
+  useEffect(() => {
+    sandpackRef.current = sandpack;
+  });
+
+  useEffect(() => {
+    if (path) sandpackRef.current.setActiveFile(path);
+  }, [path]);
+
+  return null;
 }
 
 /* ── CHAT INPUT ─────────────────────────────────────────── */
@@ -202,7 +360,11 @@ function ChatInput({
 /* ── MAIN PAGE ──────────────────────────────────────────── */
 export default function Home() {
   const [prompt, setPrompt] = useState("");
-  const [finalCode, setFinalCode] = useState("");
+  const [files, setFiles] = useState<FeedFile[]>([]);
+  const [summary, setSummary] = useState("");
+  const [buildId, setBuildId] = useState(0);
+  const [activePath, setActivePath] = useState<string | null>(null);
+  const [durationMs, setDurationMs] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const [error, setError] = useState("");
@@ -212,12 +374,20 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const startedAtRef = useRef(0);
 
-  // Scroll feed container when new cards appear
+  // Scroll the feed as new files land
   useEffect(() => {
     if (feedRef.current && isStreaming) {
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
+  }, [files, isStreaming]);
+
+  // Tick the build clock while the agent works
+  useEffect(() => {
+    if (!isStreaming) return;
+    const id = setInterval(() => setDurationMs(Date.now() - startedAtRef.current), 1000);
+    return () => clearInterval(id);
   }, [isStreaming]);
 
   // Handle divider drag
@@ -250,10 +420,14 @@ export default function Home() {
     async (promptText: string) => {
       if (!promptText.trim() || isStreaming) return;
 
+      startedAtRef.current = Date.now();
       setIsStreaming(true);
       setIsDone(false);
       setError("");
-      setFinalCode("");
+      setFiles([]);
+      setSummary("");
+      setActivePath(null);
+      setDurationMs(0);
 
       const slug = promptText
         .trim()
@@ -285,20 +459,75 @@ export default function Home() {
         if (!reader) throw new Error("No response stream");
 
         const decoder = new TextDecoder();
-        let accumulated = "";
+        let buffer = "";
+        let failure = "";
+
+        const handleEvent = (event: StreamEvent) => {
+          if (event.type === "file_start") {
+            setFiles(prev => [
+              ...prev,
+              {
+                path: event.path,
+                description: event.description,
+                code: "",
+                lines: 0,
+                done: false,
+              },
+            ]);
+            return;
+          }
+          if (event.type === "file") {
+            setFiles(prev => {
+              const next = [...prev];
+              const at = next.findIndex(f => f.path === event.path && !f.done);
+              const entry: FeedFile = {
+                path: event.path,
+                description: event.description || next[at]?.description || "",
+                code: event.code,
+                lines: event.lines,
+                done: true,
+              };
+              if (at === -1) next.push(entry);
+              else next[at] = entry;
+              return next;
+            });
+            return;
+          }
+          if (event.type === "summary") {
+            setSummary(event.text);
+            return;
+          }
+          if (event.type === "error") failure = event.message;
+        };
+
+        const drain = (chunk: string) => {
+          buffer += chunk;
+          let nl = buffer.indexOf("\n");
+          while (nl !== -1) {
+            const line = buffer.slice(0, nl).trim();
+            buffer = buffer.slice(nl + 1);
+            if (line) {
+              try {
+                handleEvent(JSON.parse(line) as StreamEvent);
+              } catch {
+                // a partial line can never be valid JSON — skip it
+              }
+            }
+            nl = buffer.indexOf("\n");
+          }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          accumulated += decoder.decode(value, { stream: true });
+          drain(decoder.decode(value, { stream: true }));
         }
+        drain("\n");
 
-        const clean = accumulated
-          .replace(/^```[\w]*\n?/m, "")
-          .replace(/\n?```\s*$/m, "")
-          .trim();
+        if (failure) throw new Error(failure);
 
-        setFinalCode(clean);
+        setDurationMs(Date.now() - startedAtRef.current);
+        setBuildId(id => id + 1);
         setIsDone(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
@@ -320,9 +549,21 @@ export default function Home() {
 
   const resetProject = () => {
     setIsDone(false);
-    setFinalCode("");
+    setFiles([]);
+    setSummary("");
+    setActivePath(null);
     setError("");
   };
+
+  const openCode = (path: string) => {
+    setActivePath(path);
+    setView("code");
+  };
+
+  const sandpackFiles = Object.fromEntries(
+    files.filter(f => f.done && f.code).map(f => [f.path, f.code])
+  );
+  const canPreview = isDone && Boolean(sandpackFiles["/App.js"]);
 
   const hasActivity = isStreaming || isDone;
 
@@ -398,7 +639,7 @@ export default function Home() {
           className="flex flex-col border-r border-gray-100 bg-white overflow-hidden"
           style={{ width: `${leftPanelWidth}%` }}
         >
-          <div className="flex-1 min-h-0 overflow-y-auto p-3">
+          <div ref={feedRef} className="flex-1 min-h-0 overflow-y-auto p-3">
             {!hasActivity ? (
               <div className="h-full flex flex-col items-center justify-center gap-2.5 select-none">
                 <svg className="w-9 h-9 text-gray-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -423,12 +664,30 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <div ref={feedRef} className="space-y-2">
-                <FeedCard
-                  fileName="App.js"
+              <div className="flex flex-col gap-3.5">
+                <FeedHeader
+                  count={files.filter(f => f.done).length}
                   isStreaming={isStreaming}
-                  onOpenCode={() => setView("code")}
+                  durationMs={durationMs}
                 />
+
+                {files.map((file, i) => (
+                  <FeedEntry
+                    key={`${file.path}-${i}`}
+                    file={file}
+                    isActive={activePath === file.path}
+                    onOpenCode={() => openCode(file.path)}
+                  />
+                ))}
+
+                {isDone && files.length > 0 && (
+                  <FeedDone
+                    message={
+                      summary ||
+                      "Am terminat de scris codul — o vezi în dreapta. Scrie-mi dacă vrei să schimbăm ceva."
+                    }
+                  />
+                )}
               </div>
             )}
           </div>
@@ -480,30 +739,46 @@ export default function Home() {
               </div>
             )}
 
-            {/* Sandpack preview when done */}
-            {isDone && finalCode && !isStreaming && (
+            {/* The generated project: preview, or the file "Open Code" asked for */}
+            {canPreview && !isStreaming && (
               <SandpackProvider
-                key={finalCode}
+                key={buildId}
                 template="react"
-                files={{ "/App.js": finalCode }}
+                files={sandpackFiles}
                 theme="light"
-                options={{ externalResources: ["https://cdn.tailwindcss.com"] }}
+                options={{
+                  externalResources: ["https://cdn.tailwindcss.com"],
+                  visibleFiles: Object.keys(sandpackFiles),
+                  activeFile: activePath ?? "/App.js",
+                }}
               >
-                {view === "code" ? (
+                <ActiveFile path={activePath} />
+                <div style={{ display: view === "code" ? "block" : "none" }}>
                   <SandpackCodeEditor
                     style={{ height: "100vh", width: "100%" }}
                     showLineNumbers
-                    showTabs={false}
+                    showTabs
                     readOnly
                   />
-                ) : (
+                </div>
+                <div style={{ display: view === "code" ? "none" : "block" }}>
                   <SandpackPreview
                     style={{ height: "100vh", width: "100%" }}
                     showNavigator={false}
                     showOpenInCodeSandbox={false}
                   />
-                )}
+                </div>
               </SandpackProvider>
+            )}
+
+            {/* The model wrote files but no root component — say so instead of a blank panel */}
+            {isDone && !canPreview && !isStreaming && (
+              <div className="absolute inset-0 flex items-center justify-center px-8">
+                <p className="text-[13px] text-gray-400 text-center max-w-xs leading-relaxed">
+                  Nu pot porni preview-ul: lipsește fișierul principal /App.js.
+                  Cere-mi să încerc din nou.
+                </p>
+              </div>
             )}
 
             {/* Welcome screen */}
