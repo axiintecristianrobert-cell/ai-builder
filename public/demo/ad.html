@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Setherion - Demo</title>
+<style>
+  :root { --blue:#2f7bff; --blue2:#0b3d91; --navy:#070d1f; --card:#111a33; --ink:#e8eefc; --mut:#8b9ac2; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; background:#02050f; overflow:hidden; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  #wrap { position:fixed; inset:0 0 56px 0; display:flex; align-items:center; justify-content:center; }
+  #stage { position:relative; width:540px; height:960px; flex:none; transform-origin:center; overflow:hidden; border-radius:28px;
+    background:radial-gradient(900px 700px at 50% 20%, #12306e 0%, var(--navy) 60%); color:var(--ink); }
+  .layer { position:absolute; inset:0; opacity:0; will-change:opacity,transform; }
+  .center { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px; }
+
+  /* cub 3D */
+  .scene3d { width:220px; height:220px; perspective:700px; display:flex; align-items:center; justify-content:center; }
+  .cube { position:relative; width:130px; height:130px; transform-style:preserve-3d; }
+  .face { position:absolute; width:130px; height:130px; border-radius:14px; border:2px solid rgba(160,205,255,.8);
+    background:linear-gradient(145deg,#5aa2ff,#1b5de0 60%,#0a3aa8); box-shadow:inset 0 0 28px rgba(255,255,255,.25), 0 0 30px rgba(47,123,255,.6); }
+  .f1{transform:translateZ(65px)} .f2{transform:rotateY(90deg) translateZ(65px);filter:brightness(.8)}
+  .f3{transform:rotateY(180deg) translateZ(65px);filter:brightness(.6)} .f4{transform:rotateY(-90deg) translateZ(65px);filter:brightness(.8)}
+  .f5{transform:rotateX(90deg) translateZ(65px);filter:brightness(1.25)} .f6{transform:rotateX(-90deg) translateZ(65px);filter:brightness(.5)}
+  .glow { position:absolute; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle,rgba(47,123,255,.55),transparent 65%); filter:blur(10px); }
+  .hook { font-size:46px; font-weight:800; line-height:1.1; letter-spacing:-.02em; margin-top:34px; }
+  .hook span { background:linear-gradient(90deg,#7db4ff,#2f7bff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--mut); font-size:20px; margin-top:14px; }
+
+  /* chat */
+  .chat { position:absolute; left:28px; right:28px; top:150px; }
+  .bubble { background:#1b4a94; border-radius:18px 18px 4px 18px; padding:20px 22px; font-size:24px; line-height:1.3; max-width:86%; margin-left:auto; min-height:70px; }
+  .caret { display:inline-block; width:2px; height:1em; background:#fff; vertical-align:-3px; margin-left:2px; }
+  .agent { display:flex; gap:12px; margin-top:34px; align-items:flex-start; }
+  .avatar { width:44px; height:44px; flex:none; border-radius:12px; background:linear-gradient(145deg,#5aa2ff,#0a3aa8); display:flex; align-items:center; justify-content:center; box-shadow:0 0 20px rgba(47,123,255,.5); }
+  .avatar i { width:20px; height:20px; border-radius:4px; background:#cfe3ff; transform:rotate(45deg) skew(-8deg,-8deg); display:block; }
+  .plan { background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:22px; flex:1; }
+  .plan h4 { font-size:24px; font-weight:600; margin-bottom:16px; }
+  .step { display:flex; align-items:center; gap:12px; margin:12px 0; font-size:20px; opacity:0; }
+  .tick { width:26px; height:26px; border-radius:50%; background:#2f7bff; display:flex; align-items:center; justify-content:center; font-size:15px; flex:none; }
+  .btn { margin-top:20px; display:inline-block; background:linear-gradient(90deg,#2f7bff,#5a8bff); padding:14px 24px; border-radius:12px; font-size:20px; font-weight:700; opacity:0; }
+  .cursor { position:absolute; width:30px; height:30px; z-index:5; }
+
+  /* build */
+  .code { position:absolute; left:26px; right:26px; top:70px; height:320px; background:#0d1117; border-radius:16px; border:1px solid rgba(255,255,255,.08); overflow:hidden; }
+  .bar { height:34px; background:#161b22; display:flex; align-items:center; gap:7px; padding:0 14px; font:12px/1 ui-monospace,monospace; color:#8b949e; }
+  .dot { width:10px; height:10px; border-radius:50%; }
+  pre { font:14px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; padding:14px 18px; color:#e6edf3; white-space:pre-wrap; }
+  .k{color:#ff7b72} .s{color:#a5d6ff} .f{color:#d2a8ff}
+  .phone { position:absolute; left:50%; top:410px; margin-left:-150px; width:300px; height:500px; border-radius:36px; border:7px solid #1d2748; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5), 0 0 40px rgba(47,123,255,.3); }
+  .app { position:absolute; inset:0; padding:22px 18px; }
+  .app h3 { font-size:26px; font-weight:800; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; }
+  .toggle { width:46px; height:26px; border-radius:20px; background:#cbd5e1; position:relative; flex:none; }
+  .toggle b { position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; }
+  .note { border-radius:14px; padding:14px; margin-bottom:12px; font-size:16px; opacity:0; }
+  .note small { display:block; opacity:.6; margin-top:4px; font-size:12px; }
+  .live { position:absolute; left:50%; margin-left:-45px; bottom:22px; background:#0f9d58; padding:8px 14px; border-radius:20px; font-size:15px; font-weight:700; opacity:0; z-index:3; }
+  .skel { height:54px; border-radius:14px; margin-bottom:12px; background:linear-gradient(90deg,#e5e7eb,#f3f4f6,#e5e7eb); }
+
+  /* cta */
+  .logocard { position:relative; z-index:1; background:#fff; border-radius:24px; padding:6px 10px; box-shadow:0 0 70px rgba(47,123,255,.6); }
+  .logocard img { width:400px; display:block; }
+  .cta { position:relative; z-index:1; margin-top:40px; background:linear-gradient(90deg,#2f7bff,#5a8bff); font-size:28px; font-weight:800; padding:18px 34px; border-radius:16px; }
+  #prog { position:absolute; left:0; bottom:0; height:5px; background:linear-gradient(90deg,#2f7bff,#7db4ff); width:0; }
+  #replay { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); background:#2f7bff; color:#fff; border:0; padding:10px 26px; border-radius:10px; font:600 15px system-ui; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+
+  <!-- 1. hook -->
+  <div class="layer center" id="L1">
+    <div class="glow"></div>
+    <div class="scene3d"><div class="cube" id="cube">
+      <div class="face f1"></div><div class="face f2"></div><div class="face f3"></div>
+      <div class="face f4"></div><div class="face f5"></div><div class="face f6"></div>
+    </div></div>
+    <div class="hook" id="hook">Idee → aplicație.<br><span>În 15 secunde.</span></div>
+  </div>
+
+  <!-- 2. chat -->
+  <div class="layer" id="L2">
+    <div class="chat">
+      <div class="bubble"><span id="typed"></span><span class="caret" id="caret"></span></div>
+      <div class="agent" id="agent" style="opacity:0">
+        <div class="avatar"><i></i></div>
+        <div class="plan">
+          <h4>Perfect! Iată planul:</h4>
+          <div class="step" id="s1"><div class="tick">✓</div>Interfață cu lista de notițe</div>
+          <div class="step" id="s2"><div class="tick">✓</div>Salvare și etichete</div>
+          <div class="step" id="s3"><div class="tick">✓</div>Mod întunecat</div>
+          <div class="btn" id="btn">✓ Construiește</div>
+        </div>
+      </div>
+    </div>
+    <svg class="cursor" id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#000" stroke-width="1.5"/></svg>
+  </div>
+
+  <!-- 3. build -->
+  <div class="layer" id="L3">
+    <div class="code">
+      <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>&nbsp;App.jsx</div>
+      <pre id="code"></pre>
+    </div>
+    <div class="phone" id="phone">
+      <div class="live" id="live">● Live</div>
+      <div class="app" id="app" style="background:#fff;color:#111827">
+        <h3>Notițele mele <div class="toggle" id="tg"><b id="tgb"></b></div></h3>
+        <div id="skels"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+        <div class="note" id="n1">Idei pentru weekend<small>azi · #personal</small></div>
+        <div class="note" id="n2">Listă de cumpărături<small>ieri · #casă</small></div>
+        <div class="note" id="n3">Plan proiect nou<small>luni · #muncă</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. cta -->
+  <div class="layer center" id="L4">
+    <div class="glow"></div>
+    <div class="logocard"><img src="/logo.png" alt="Setherion"></div>
+    <div class="cta">Încearcă gratuit →</div>
+    <div class="sub" style="margin-top:22px">Construiește-ți aplicația cu AI</div>
+  </div>
+
+  <div id="prog"></div>
+</div></div>
+<button id="replay">↻ Replay</button>
+
+<script>
+const DUR = 15;
+const $ = id => document.getElementById(id);
+const clamp = (x,a=0,b=1) => Math.min(b, Math.max(a, x));
+const seg = (t,a,b) => clamp((t-a)/(b-a));
+const ease = x => 1 - Math.pow(1-x, 3);
+const vis = (t,a,b,fi=.35,fo=.35) => Math.min(seg(t,a,a+fi), 1-seg(t,b-fo,b));
+
+const PROMPT = "Fă-mi o aplicație de notițe cu mod întunecat";
+const CODE = [
+  '<span class="k">export default function</span> <span class="f">App</span>() {',
+  '  <span class="k">const</span> [dark, setDark] = <span class="f">useState</span>(<span class="k">false</span>)',
+  '  <span class="k">const</span> [notes, setNotes] = <span class="f">useState</span>([])',
+  '  <span class="k">return</span> (',
+  '    &lt;<span class="f">Screen</span> dark={dark}&gt;',
+  '      &lt;<span class="f">Header</span> title=<span class="s">"Notițele mele"</span> /&gt;',
+  '      &lt;<span class="f">NoteList</span> items={notes} /&gt;',
+  '      &lt;<span class="f">ThemeToggle</span> onChange={setDark} /&gt;',
+  '    &lt;/<span class="f">Screen</span>&gt;',
+  '  )',
+  '}'
+];
+// text brut pentru calculul lungimii
+const plain = s => s.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+function partialHTML(html, n) { // taie html la n caractere vizibile
+  let out='', vis=0, i=0;
+  while (i<html.length && vis<n) {
+    if (html[i]==='<') { const j=html.indexOf('>',i); out+=html.slice(i,j+1); i=j+1; }
+    else if (html[i]==='&') { const j=html.indexOf(';',i); out+=html.slice(i,j+1); i=j+1; vis++; }
+    else { out+=html[i]; i++; vis++; }
+  }
+  // inchide tag-urile span deschise
+  const open=(out.match(/<span/g)||[]).length, close=(out.match(/<\/span>/g)||[]).length;
+  return out + '</span>'.repeat(open-close);
+}
+const TOTAL = CODE.reduce((a,l)=>a+plain(l).length+1,0);
+
+function render(t) {
+  // L1 hook
+  $('L1').style.opacity = vis(t,0,2.4,.01,.4);
+  $('cube').style.transform = `rotateX(${-24+Math.sin(t*2)*8}deg) rotateY(${t*150}deg) scale(${1+Math.sin(t*5)*.04})`;
+  const h = ease(seg(t,.4,1.0)); $('hook').style.opacity=h; $('hook').style.transform=`translateY(${(1-h)*24}px)`;
+
+  // L2 chat
+  $('L2').style.opacity = vis(t,2.2,8.4,.35,.4);
+  const tp = seg(t,2.6,4.6); const n = Math.floor(tp*PROMPT.length);
+  $('typed').textContent = PROMPT.slice(0,n);
+  $('caret').style.opacity = (tp<1) ? (Math.floor(t*3)%2?0:1) : 0;
+  const a = ease(seg(t,4.8,5.3)); $('agent').style.opacity=a; $('agent').style.transform=`translateY(${(1-a)*20}px)`;
+  [['s1',5.6],['s2',6.1],['s3',6.6]].forEach(([id,s])=>{ const k=ease(seg(t,s,s+.3)); $(id).style.opacity=k; $(id).style.transform=`translateX(${(1-k)*-16}px)`; });
+  const b = ease(seg(t,7.0,7.3)); const clicked = t>7.75;
+  const btn=$('btn'); btn.style.opacity=b; btn.style.transform=`scale(${clicked? .94 + seg(t,7.75,7.95)*.06 : 1})`;
+  btn.textContent = clicked ? '⏳ Se construiește…' : '✓ Construiește';
+  // cursor spre buton
+  const cp = ease(seg(t,6.9,7.7));
+  const r = btn.getBoundingClientRect(), sr = $('stage').getBoundingClientRect(), sc = sr.width/540;
+  const bx = (r.left-sr.left)/sc + 70, by = (r.top-sr.top)/sc + 18;
+  $('cursor').style.left = (460 + (bx-460)*cp)+'px'; $('cursor').style.top = (860 + (by-860)*cp)+'px';
+  $('cursor').style.opacity = seg(t,6.9,7.1) * (1-seg(t,8.0,8.3));
+
+  // L3 build
+  $('L3').style.opacity = vis(t,8.2,12.2,.4,.4);
+  const cn = Math.floor(seg(t,8.5,11)*TOTAL); let left=cn, html='';
+  for (const l of CODE) { const L=plain(l).length+1; if (left<=0) break; html += partialHTML(l, Math.min(left,L)) + '\n'; left-=L; }
+  $('code').innerHTML = html;
+  const nt=[9.4,9.9,10.4]; ['n1','n2','n3'].forEach((id,i)=>{ const k=ease(seg(t,nt[i],nt[i]+.3)); $(id).style.opacity=k; $(id).style.transform=`translateY(${(1-k)*16}px)`; });
+  $('skels').style.display = t>9.4 ? 'none':'block';
+  const dk = ease(seg(t,10.9,11.3));
+  const ap=$('app'); ap.style.background = dk? `rgb(${Math.round(255-(255-15)*dk)},${Math.round(255-(255-23)*dk)},${Math.round(255-(255-42)*dk)})`:'#fff';
+  ap.style.color = dk>.5 ? '#f1f5f9' : '#111827';
+  ['n1','n2','n3'].forEach(id=>{ $(id).style.background = dk>.5 ? '#1e293b' : '#f1f5f9'; });
+  $('tg').style.background = dk>.5 ? '#2f7bff' : '#cbd5e1'; $('tgb').style.left = (3+dk*20)+'px';
+  $('live').style.opacity = ease(seg(t,11.4,11.7));
+
+  // L4 cta
+  $('L4').style.opacity = vis(t,12,15.01,.4,.3);
+  $('L4').style.transform = `scale(${.96+ease(seg(t,12,12.8))*.04})`;
+
+  $('prog').style.width = (t/DUR*100)+'%';
+}
+
+function fit() {
+  const w=$('wrap').clientWidth, h=$('wrap').clientHeight;
+  $('stage').style.transform = `scale(${Math.min(w/540,h/960)})`;
+}
+addEventListener('resize', fit); fit();
+
+let start=null, raf=null, manual=false;
+function loop(ts){ if(start===null) start=ts; const t=((ts-start)/1000); render(Math.min(t,DUR)); if(t<DUR) raf=requestAnimationFrame(loop); }
+function play(){ cancelAnimationFrame(raf); start=null; manual=false; raf=requestAnimationFrame(loop); }
+window.seek = t => { manual=true; cancelAnimationFrame(raf); render(t); };
+$('replay').onclick = play;
+const q = new URLSearchParams(location.search).get('t');
+if (q!==null) window.seek(parseFloat(q)); else play();
+</script>
+</body>
+</html>
